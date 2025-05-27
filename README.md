@@ -1,26 +1,21 @@
-# test
+# Ćwiczenia z kursu
 Marysia
 
-## Quarto
+## Intro
 
-Quarto enables you to weave together content and executable code into a
-finished document. To learn more about Quarto see <https://quarto.org>.
+Repo z projektu ML, filozofia tidymodels
 
-## Running Code
+Pierwszy Rprojekt z Gitem
 
-When you click the **Render** button a document will be generated that
-includes both content and the output of embedded code. You can embed
-code like this:
+## Dobre praktyki
 
-``` r
-1 + 1
-```
+- .gitignore (`*.rozszerzenie`, `folder/`, `/.quarto`)
+- nie generuj folderu plikow pomocniczych przy renderowaniu quarto
+  (`self-contained: true`, `embed-resources: true`)
+- Rstudio -\> tools -\> git -\> sign (puste)
+- cache - przyspiesza renderowanie dokumentów
+- qmd -\> md (format: gfm)
 
-    [1] 2
+## commit pull push
 
-You can add options to executable code like this
-
-    [1] 4
-
-The `echo: false` option disables the printing of code (only output is
-displayed).
+## branch
