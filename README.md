@@ -19,3 +19,10 @@ Pierwszy Rprojekt z Gitem
 ## commit pull push
 
 ## branch
+
+1)  tworzenie branch z poziomu rStudio
+2)  wysyłanie commitow
+3)  trafiaja do nowej galezi
+4)  pull request
+5)  merge kodujemy do main (etykiety, kamienie milowe)
+6)  pull
