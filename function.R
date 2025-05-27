@@ -1,9 +1,29 @@
-# funkcja
+# funkcja liczy parametr y na podstawie zbioru danych x
+# x - zbiór danych w postaci wektora liczbowego 
+# funkcja sprawdza, czy zmienna jest typu numerycznego 
 
 new_f <- function(x){
   
-  y <- x / 100 + sqrt(x)
+  if (!is.numeric(x)) { stop("Obiekt wejściowy x nie jest typu numeric") }
+  
+  srednia <- mean(x)
+  
+  y <- srednia / 10 + sqrt(srednia)
+  
+  plot(x, rep(y, length(x)), main = "Basic plot", xlab = "x", ylab = "y")
   
   return(y)
-  
 }
+
+# test 1 funkcji 
+
+dane <- 1:10
+
+new_f(x = dane)
+
+# test 2 - sprawdzamy, czy odporna
+
+new_f(x = letters)
+
+letters |> str()
+
