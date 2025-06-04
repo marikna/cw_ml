@@ -59,35 +59,60 @@ air
 ```
 
 ```{r}
-set.seed(111) 
-n <- nrow(air)
-train_id <- sample(seq_len(n), size = 0.8 * n)
+set.seed(111)
+split <- initial_split(air, prop = 3/4)
+train_data <- training(split)
+test_data  <- testing(split)
 ```
 
 ```{r}
-train_data <- air[train_id, ]
-test_data  <- air[-train_id, ]
+lm_mod <- 
+  linear_reg() |> 
+  set_engine("lm")
 ```
 
 ```{r}
-model <- lm(ozone ~ solar.r + wind + temp + month, data = train_data)
-model |> summary()
-```
-```{r}
-predicted <- predict(model, newdata = test_data)
+lm_fit <-  
+  lm_mod |>
+  fit(ozone ~ solar.r + wind + temp + month, data = train_data)
+lm_fit  
 ```
 
 ```{r}
-results <- test_data |> 
-  mutate(predicted_ozone = predicted)
+lm_fit$fit  |> summary()
+```
+```{r}
+mean_pred <- predict(object = lm_fit, new_data = test_data)
+```
+
+```{r}
+conf_pred <- predict(lm_fit, new_data = test_data, type = "conf_int")
+```
+
+```{r}
+results <- bind_cols(test_data, mean_pred, conf_pred) |> 
+  rename(predicted_ozone = .pred)
 
 results
 ```
+
 ```{r}
 ggplot(results, aes(x = ozone, y = predicted_ozone)) +
   geom_point(color = "pink") +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "purple") +
-  labs(title = "Predykcja wartości ozonu", x = "Rzeczywista wartość", y = "Przewidywana wartość") +
+  labs(title = "Predykcja wartości ozonu z linią perfekcyjnego przewidywania", x = "Rzeczywista wartość", y = "Przewidywana wartość") +
   theme_minimal()
+```
+
+```{r}
+ggplot(results, aes(x = ozone, y = predicted_ozone)) +
+  geom_point(color = "pink") +
+  geom_errorbar(aes(ymin = .pred_lower, ymax = .pred_upper), 
+                width = 0.1, color = "gray") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "purple") +
+  labs(title = "Predykcja wartości ozonu z przedziałami ufności",
+       x = "Rzeczywista wartość", y = "Przewidywana wartość") +
+  theme_minimal()
+
 ```
 
