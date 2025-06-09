@@ -81,6 +81,9 @@ lm_fit
 ```{r}
 lm_fit$fit  |> summary()
 ```
+Temperatura - pozytywny i statystycznie istotny wpływ na poziom ozonu.
+Wiatr - negatywny i statystycznie istostny wpływa na poziom ozonu.
+Solar.r - umiarkowane działanie i wpływ 
 ```{r}
 mean_pred <- predict(object = lm_fit, new_data = test_data)
 ```
@@ -103,7 +106,7 @@ ggplot(results, aes(x = ozone, y = predicted_ozone)) +
   labs(title = "Predykcja wartości ozonu z linią perfekcyjnego przewidywania", x = "Rzeczywista wartość", y = "Przewidywana wartość") +
   theme_minimal()
 ```
-
+Model ma problem szczególnie z przewidywaniem wyższych wartości. 
 ```{r}
 ggplot(results, aes(x = ozone, y = predicted_ozone)) +
   geom_point(color = "pink") +
@@ -115,4 +118,4 @@ ggplot(results, aes(x = ozone, y = predicted_ozone)) +
   theme_minimal()
 
 ```
-
+Przedziały ufności są bardzo szerokie, jest spory poziom niepewności i błędu.
