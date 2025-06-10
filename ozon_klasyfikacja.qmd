@@ -1,0 +1,191 @@
+---
+title: "Klasyfikacja ozon"
+author: "Marysia"
+format: 
+  html:
+    self-contained: true
+    embed-resources: true
+    toc: true
+    toc-depth: 4
+    toc-location: right
+    toc-title: "Spis treści"
+    number-sections: true
+    number-depth: 4
+    code-fold: show
+    code-summary: "Show the code"
+    code-tools: true
+    code-block-bg: true
+    code-block-border-left: "black"
+    code-line-numbers: false
+    code-copy: true
+    html-math-method: katex
+    smooth-scroll: true
+    anchor-sections: true
+    link-external-icon: true
+    link-external-newwindow: true
+    theme:
+        light: cosmo
+        dark: darkly
+    fontsize: 1.0em
+    linestretch: 1.5
+execute:
+  warning: false
+  echo: true
+  error: false
+---
+Czy stężenie ozonu było wysokie, czy niskie?
+
+```{r}
+library(tidymodels) 
+library(skimr) 
+library(GGally) 
+library(openair) 
+tidymodels_prefer()
+```
+```{r}
+air <- mydata |> selectByDate(year = 2002) 
+air |> skim()
+```
+
+```{r}
+air <- air |> na.omit()
+```
+
+```{r}
+set.seed(222)
+air[sample(1:nrow(air), size = 300, replace = F),] |> 
+  select(nox, no2) |> 
+  ggpairs()
+```
+
+```{r}
+library(ggpubr)
+# wykres regresji liniowej, do sprawdzenia danych 
+set.seed(222)
+air[sample(1:nrow(air), size = 300, replace = F),] |> 
+  select(nox, no2) |> 
+  ggplot(aes(nox, no2)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = T, formula = y ~ x) + 
+  stat_cor(label.x = 10, label.y = 80) + 
+  stat_regline_equation(label.x = 10, label.y = 85) +
+  theme_bw()
+```
+
+ nox i no2 są mocno skorelowane
+ 
+```{r}
+air |>    
+  ggplot(aes(date, o3)) +     
+  geom_line() +     
+  theme_bw()
+```
+zakladam ze niskie to <10, a wysokie to >
+```{r}
+air |> 
+  pull(o3) |> 
+  range()  
+```
+
+```{r}
+air <-
+  air |>
+  mutate(ozone = cut(
+    o3,
+    breaks = c(-0.1, 10, 53),
+    labels = c("Niskie", "Wysokie")
+  ))
+```
+
+```{r}
+air |> count(ozone)
+```
+```{r}
+set.seed(222)
+data_split <- initial_split(air, strata = ozone)
+train_data <- training(data_split)
+test_data <- testing(data_split)
+```
+
+
+```{r}
+ozon_rec <- recipe(ozone ~ ., data = train_data) |>
+  update_role(date, new_role = "ID") |> 
+  step_rm(nox) |>  # kolinearnosc z no2 - nic nie wnosi
+  step_rm(o3) |> 
+  step_date(date, features = c("month", "dow")) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_YeoJohnson(all_numeric_predictors()) |> 
+  step_zv(all_predictors())
+```
+
+```{r}
+ozon_rec |> summary()
+```
+
+```{r}
+ozon_rec |> prep()
+```
+
+```{r}
+lr_mod <- logistic_reg() |> 
+  set_engine("glm") |> 
+  set_mode("classification")
+
+logi_work <- 
+  workflow() |> 
+  add_model(lr_mod) |> 
+  add_recipe(ozon_rec)
+
+logi_work
+```
+```{r}
+logi_fit <-  
+  logi_work |> 
+  fit(data = train_data)
+
+ozon_rec |> summary()
+```
+
+```{r}
+logi_fit |> 
+  extract_fit_parsnip() |> 
+  tidy()
+```
+
+```{r}
+predict(logi_fit, test_data)
+```
+
+```{r}
+logi_preds <- predict(logi_fit, test_data, type = "prob") |> 
+  bind_cols(predict(logi_fit, test_data)) |> 
+  bind_cols(test_data |> select(ozone))
+
+head(logi_preds)
+
+```
+```{r}
+logi_preds |> 
+  metrics(truth = ozone, estimate = .pred_class)
+
+logi_preds |> 
+  conf_mat(truth = ozone, estimate = .pred_class)
+```
+
+
+```{r}
+logi_preds  |> 
+  roc_curve(truth = ozone, .pred_Wysokie) |> 
+  autoplot()
+```
+
+
+
+
+
+
+
+
+
+
