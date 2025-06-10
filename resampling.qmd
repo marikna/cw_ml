@@ -169,3 +169,20 @@ rf_fit_rs <-
 rf_fit_rs
 ```
 
+```{r}
+rf_fit_rs |> 
+  collect_metrics() |> 
+  knitr::kable(digits = 3)
+```
+
+```{r}
+bind_rows(
+  rf_pred_test |>
+    roc_auc(truth = class, .pred_PS),
+  
+  rf_pred_test |>
+    accuracy(truth = class, .pred_class)
+) |>
+  knitr::kable(digits = 3)
+```
+
