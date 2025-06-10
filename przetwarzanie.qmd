@@ -1,0 +1,244 @@
+---
+title: "przetwarzanie"
+author: "Marysia"
+format: 
+  html:
+    self-contained: true
+    embed-resources: true
+    toc: true
+    toc-depth: 4
+    toc-location: right
+    toc-title: "Spis treści"
+    number-sections: true
+    number-depth: 4
+    code-fold: show
+    code-summary: "Show the code"
+    code-tools: true
+    code-block-bg: true
+    code-block-border-left: "black"
+    code-line-numbers: false
+    code-copy: true
+    html-math-method: katex
+    smooth-scroll: true
+    anchor-sections: true
+    link-external-icon: true
+    link-external-newwindow: true
+    theme:
+        light: cosmo
+        dark: darkly
+    fontsize: 1.0em
+    linestretch: 1.5
+execute:
+  warning: false
+  echo: true
+  error: false
+---
+ 
+```{r}
+library(skimr)
+library(nycflights13)
+library(tidymodels)
+tidymodels_prefer()
+```
+
+```{r}
+?flights
+?weather
+```
+  
+```{r}
+set.seed(123)
+flights_data <-
+  flights |>
+  mutate(
+    arr_delay = ifelse(arr_delay >= 30, "late", "on_time"),
+    arr_delay = factor(arr_delay),
+    date = lubridate::as_date(time_hour)
+  ) |>
+  inner_join(weather, by = c("origin", "time_hour")) |>
+  select(dep_time,
+         flight,
+         origin,
+         dest,
+         air_time,
+         distance,
+         carrier,
+         date,
+         arr_delay,
+         time_hour) |>
+  na.omit() |>
+  mutate_if(is.character, as.factor)
+```
+  
+```{r}
+flights_data |>
+  count(arr_delay) |>
+  mutate(prop = n/sum(n))
+```
+16 % procent lotów ma opóźnienia większe niż 30 minut
+
+```{r}
+flights_data |> glimpse()
+```
+```{r}
+flights_data |>
+  skimr::skim()
+```
+
+```{r}
+set.seed(222)
+data_split <- initial_split(data = flights_data, prop = 3/4)
+train_data <- training(data_split)
+test_data <-  testing(data_split)
+```
+
+```{r}
+flights_rec <-
+  recipe(arr_delay ~ ., data = train_data) |>
+  update_role(flight, time_hour, new_role = "ID")
+```
+
+Po lewej stronie tyldy jest uważana za zmienną objaśnianą, po prawej stronie tyldy znajdują się predyktory. Flight i time_hour są są zmiennymi z niestandardową rolą, którą nazwaliśmy “ID” (rola może mieć dowolną wartość znakową). Podczas gdy nasza formuła obejmowała wszystkie zmienne w zbiorze uczącym inne niż arr_delay jako predyktory, to mówi recepturze, aby zachować te dwie zmienne, ale nie stosować ich jako predyktorów. 
+
+```{r}
+flights_rec |> summary()
+```
+```{r}
+flights_data |>
+  distinct(date) |>  # zwrava wartości unikalne daty (bez powtrzeń)
+  mutate(date = as.numeric(date))
+```
+```{r}
+flights_rec <- 
+  recipe(arr_delay ~ ., data = train_data) |> 
+  update_role(flight, time_hour, new_role = "ID") |> 
+  step_date(date, features = c("dow", "month")) |> 
+  step_holiday(date, 
+               holidays = timeDate::listHolidays("US"), 
+               keep_original_cols = F)
+
+flights_rec |> summary()
+```
+- Za pomocą step_date() utworzyliśmy dwie nowe kolumny jakościowe z odpowiednim dniem tygodnia i miesiącem.
+- Za pomocą step_holiday(), stworzyliśmy zmienną binarną wskazującą, czy bieżąca data jest świętem, czy nie. Wartość argumentu timeDate::listHolidays("US") używa pakietu timeDate do wyświetlenia listy 18 standardowych świąt w USA.
+- Z keep_original_cols = FALSE usuwamy pierwotną date zmienną, ponieważ nie chcemy jej już w modelu. Wiele kroków receptury, które tworzą nowe zmienne, ma ten argument.
+
+```{r}
+flights_rec |>
+  prep() |>
+  bake(train_data) |>
+  (\(x) x[1:10, ])() |>
+  DT::datatable()
+```
+```{r}
+flights_rec <- 
+  recipe(arr_delay ~ ., data = train_data) |> 
+  update_role(flight, time_hour, new_role = "ID") |> 
+  step_date(date, features = c("dow", "month")) |> 
+  step_holiday(date, 
+               holidays = timeDate::listHolidays("US"), 
+               keep_original_cols = F) |> 
+  step_dummy(all_nominal_predictors())
+
+flights_rec |> summary()
+```
+```{r}
+test_data |> 
+  distinct(dest) |> 
+  anti_join(train_data)
+```
+Jest to „predyktor zerowej wariancji”, ktry nie zawiera żadnych informacji w kolumnie.
+
+```{r}
+flights_rec <-
+  recipe(arr_delay ~ ., data = train_data) |>
+  update_role(flight, time_hour, new_role = "ID") |>
+  step_date(date, features = c("dow", "month")) |>
+  step_holiday(date,
+               holidays = timeDate::listHolidays("US"),
+               keep_original_cols = F) |>
+  step_dummy(all_nominal_predictors()) |>
+  step_zv(all_predictors())
+```
+
+```{r}
+flights_rec |> prep()
+```
+```{r}
+lr_mod <- 
+  logistic_reg() |> 
+  set_engine("glm")
+```
+
+```{r}
+logi_work <- 
+  workflow() |> 
+  add_model(lr_mod) |> 
+  add_recipe(flights_rec)
+
+logi_work
+```
+```{r}
+logi_fit <-  
+  logi_work |> 
+  fit(data = train_data)
+
+flights_rec |> summary()
+```
+
+```{r}
+logi_fit |> 
+  extract_fit_parsnip() |> 
+  tidy()
+```
+
+```{r}
+logi_fit |> 
+  extract_recipe()
+```
+
+```{r}
+predict(logi_fit, test_data)
+```
+zmienna objaśniana (prognozowana) jest zmienna jakościową
+
+```{r}
+predict(logi_fit, test_data, type = "prob")
+```
+  
+```{r}
+pred_test <- 
+  augment(logi_fit, test_data) |>
+  select(-dest,
+         -flight,
+         -origin,
+         -dep_time,
+         -air_time,
+         -distance,
+         -carrier,
+         -date)
+pred_test
+```
+
+
+```{r}
+pred_test  |> 
+  roc_curve(truth = arr_delay, .pred_late) |> 
+  autoplot()
+```
+
+Pole pod ROC jako metryka
+```{r}
+pred_test  |> 
+  roc_curve(truth = arr_delay, .pred_late) |> 
+  autoplot()
+```
+
+```{r}
+pred_test |> 
+  roc_auc(truth = arr_delay, .pred_late)
+```
+
+
+
+  
