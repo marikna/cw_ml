@@ -40,8 +40,10 @@ library(tidymodels)
 library(skimr) 
 library(GGally) 
 library(openair) 
+library(ranger)
 tidymodels_prefer()
 ```
+# Analiza
 ```{r}
 air <- mydata |> selectByDate(year = 2002) 
 air |> skim()
@@ -100,6 +102,7 @@ air <-
 ```{r}
 air |> count(ozone)
 ```
+# Modele
 ```{r}
 set.seed(222)
 data_split <- initial_split(air, strata = ozone)
@@ -126,7 +129,7 @@ ozon_rec |> summary()
 ```{r}
 ozon_rec |> prep()
 ```
-
+Zwykła regresja logistyczna
 ```{r}
 lr_mod <- logistic_reg() |> 
   set_engine("glm") |> 
@@ -139,6 +142,39 @@ logi_work <-
 
 logi_work
 ```
+
+Model lasu losowego z vkrotną walidacją
+```{r}
+set.seed(345)
+folds <- vfold_cv(data = train_data, v = 10)
+
+rf_mod <- rand_forest() |>
+  set_engine("ranger") |>
+  set_mode("classification")
+
+rf_wf <- workflow() |>
+  add_model(rf_mod) |>
+  add_recipe(ozon_rec)
+```
+
+```{r}
+set.seed(456)
+rf_fit_rs <- 
+  rf_wf |> 
+  fit_resamples(folds)
+
+rf_fit_rs
+```
+V-krotna walidacja dla regresji logistycznej
+```{r}
+logi_fit_rs <- 
+  logi_work |> 
+  fit_resamples(folds)
+
+logi_fit_rs
+```
+
+
 ```{r}
 logi_fit <-  
   logi_work |> 
@@ -152,6 +188,7 @@ logi_fit |>
   extract_fit_parsnip() |> 
   tidy()
 ```
+
 
 ```{r}
 predict(logi_fit, test_data)
@@ -181,11 +218,57 @@ logi_preds  |>
 ```
 
 
+```{r}
+rf_fit_rs |> 
+  collect_metrics() |> 
+  knitr::kable(digits = 3)
+```
 
 
+```{r}
+logi_fit_rs |> 
+  collect_metrics() |> 
+  knitr::kable(digits = 3)
+```
 
 
+Bootstrap dla regresji
+```{r}
+bootstraps <- bootstraps(train_data, times = 25, strata = ozone)
+
+logi_boot <- 
+  fit_resamples(
+    logi_work,
+    resamples = bootstraps
+  )
+
+logi_boot |> collect_metrics() |> knitr::kable(digits = 3)
+```
+
+Boostrap dla lasu
+```{r}
+rf_boot <- 
+  fit_resamples(
+    rf_wf,
+    resamples = bootstraps
+  )
+
+rf_boot |> collect_metrics() |> knitr::kable(digits = 3)
+```
 
 
+```{r}
+bind_rows(
+  collect_metrics(logi_fit_rs) |> mutate(model = "Logistic - CV"),
+  collect_metrics(rf_fit_rs)   |> mutate(model = "Random Forest - CV"),
+  collect_metrics(logi_boot)   |> mutate(model = "Logistic - Bootstrap"),
+  collect_metrics(rf_boot)     |> mutate(model = "Random Forest - Bootstrap")
+) |> 
+  knitr::kable(digits = 3)
 
+```
+
+# Wnioski
+Las losowy wypada lepiej niż regresja logistyczna - i przy cv i przy bootstrapie. Std_err jest dobre dla obydwu modeli, lecz dla metod bootstrapowych 
+zmniejsza ich wartość jeszcze bardziej. Zarówno walidacja krzyżowa, jak i bootstrap dały bardzo zbliżone wyniki, to dobry rezultat, który świadczy o stabilności i powtarzalności modeli, a także o tym, że są one dobrze dopasowane i nie wykazują dużego wpływu przypadkowości danych uczących. Niższy Brier score dla modelu lasu losowego mówi o tym, że przewidywane prawdopodobieństwa są bliższe rzeczywistemu rozkładowi klas niż w przypadku regresji logistycznej. Dzięki resampligowi obniża się ryzyko przeuczenia.
 
